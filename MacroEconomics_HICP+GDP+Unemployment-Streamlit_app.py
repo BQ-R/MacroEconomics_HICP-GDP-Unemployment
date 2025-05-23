@@ -37,7 +37,7 @@ TRAD = {
     }
 }
 
-# --- Interfaz de idioma ---
+# Interfaz de idioma
 idioma_ui = st.selectbox("🌐 Select interface language / Selecciona idioma de la interfaz:", ["es", "en"])
 ui = TRAD[idioma_ui]
 
@@ -52,7 +52,7 @@ kpis_seleccionados = st.multiselect(
     ["HICP – Harmonized Inflation", "GDP – Gross Domestic Product", "Unemployment Rate"]
 )
 
-# --- Función para detectar país desde dirección ---
+# Función para detectar país
 def obtener_codigo_pais(direccion):
     url = "https://nominatim.openstreetmap.org/search"
     params = {"q": direccion, "format": "json", "limit": 1, "addressdetails": 1}
@@ -66,7 +66,31 @@ def obtener_codigo_pais(direccion):
         st.error(f"Error detectando país: {e}")
     return None
 
-# --- Procesamiento ---
+# Función para mostrar gráficos
+def mostrar_grafico(df, titulo, color_linea, unidad_y):
+    fig, ax = plt.subplots(figsize=(6, 3), facecolor='none')
+    ax.plot(df["Periodo"], df["Valor"], color=color_linea, linewidth=2)
+
+    ticks = [p for i, p in enumerate(df["Periodo"]) if "-Q1" in p or "-01" in p]
+    ax.set_xticks(ticks)
+    ax.set_xticklabels(ticks, rotation=0, fontsize=8)
+
+    ax.set_title(titulo, fontsize=12)
+    ax.set_ylabel(unidad_y)
+    ax.grid(True, linestyle="--", alpha=0.3)
+    ax.set_facecolor("none")
+
+    plt.rcParams.update({
+        'text.color': '#CCCCCC',
+        'axes.labelcolor': '#CCCCCC',
+        'xtick.color': '#CCCCCC',
+        'ytick.color': '#CCCCCC',
+        'axes.edgecolor': '#888888',
+    })
+
+    st.pyplot(fig)
+
+# Ejecución principal
 if st.button(ui["generate"]) and direccion and kpis_seleccionados:
     codigo_pais = obtener_codigo_pais(direccion)
     if not codigo_pais:
@@ -97,6 +121,7 @@ if st.button(ui["generate"]) and direccion and kpis_seleccionados:
 
         texto_kpis = ""
         parrafos = []
+
         try:
             if "HICP – Harmonized Inflation" in kpis_seleccionados:
                 df_hicp = obtener_df("prc_hicp_midx", {"coicop": "CP00", "unit": "I15"})
@@ -133,12 +158,7 @@ if st.button(ui["generate"]) and direccion and kpis_seleccionados:
             if "HICP – Harmonized Inflation" in kpis_seleccionados:
                 col1, col2 = st.columns([1.2, 2])
                 with col1:
-                    fig, ax = plt.subplots(figsize=(6, 3))
-                    ax.plot(df_hicp["Periodo"], df_hicp["Valor"], color="#DAA520")
-                    ax.set_facecolor("#F5F5F5")
-                    ax.grid(True, linestyle="--", alpha=0.3)
-                    ax.tick_params(axis="x", rotation=45)
-                    st.pyplot(fig)
+                    mostrar_grafico(df_hicp, "HICP – Harmonized Inflation", "#DAA520", "Índice (base 2015=100)")
                 with col2:
                     st.write(parrafos[idx])
                     idx += 1
@@ -146,12 +166,7 @@ if st.button(ui["generate"]) and direccion and kpis_seleccionados:
             if "GDP – Gross Domestic Product" in kpis_seleccionados:
                 col1, col2 = st.columns([1.2, 2])
                 with col1:
-                    fig, ax = plt.subplots(figsize=(6, 3))
-                    ax.plot(df_pib["Periodo"], df_pib["Valor"], color="#4682B4")
-                    ax.set_facecolor("#F5F5F5")
-                    ax.grid(True, linestyle="--", alpha=0.3)
-                    ax.tick_params(axis="x", rotation=45)
-                    st.pyplot(fig)
+                    mostrar_grafico(df_pib, "GDP – Gross Domestic Product", "#4682B4", "Volumen (CLV10_MNAC)")
                 with col2:
                     st.write(parrafos[idx])
                     idx += 1
@@ -159,12 +174,7 @@ if st.button(ui["generate"]) and direccion and kpis_seleccionados:
             if "Unemployment Rate" in kpis_seleccionados:
                 col1, col2 = st.columns([1.2, 2])
                 with col1:
-                    fig, ax = plt.subplots(figsize=(6, 3))
-                    ax.plot(df_unemp["Periodo"], df_unemp["Valor"], color="#2F4F4F")
-                    ax.set_facecolor("#F5F5F5")
-                    ax.grid(True, linestyle="--", alpha=0.3)
-                    ax.tick_params(axis="x", rotation=45)
-                    st.pyplot(fig)
+                    mostrar_grafico(df_unemp, "Unemployment Rate", "#2F4F4F", "% población activa")
                 with col2:
                     st.write(parrafos[idx])
                     idx += 1
@@ -174,6 +184,7 @@ if st.button(ui["generate"]) and direccion and kpis_seleccionados:
 
         except Exception as e:
             st.error(f"❌ Error al procesar: {e}")
+
 
 
 
