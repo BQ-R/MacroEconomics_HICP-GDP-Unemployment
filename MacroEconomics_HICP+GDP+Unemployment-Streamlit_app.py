@@ -7,7 +7,52 @@ from openai import OpenAI
 
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# --- Detectar país desde dirección ---
+# Traducciones front-end
+TRAD = {
+    "es": {
+        "title": "📊 Generador de Resumen Macroeconómico",
+        "address": "Introduce una dirección europea:",
+        "words": "Número de palabras en el resumen:",
+        "kpis": "Selecciona los indicadores a incluir:",
+        "generate": "Generar resumen",
+        "results": "📊 Resultados por indicador",
+        "summary_es": "🧠 Resumen – ES",
+        "summary_en": "🧠 Summary – EN",
+        "conclusion_es": "🧠 Conclusión final – ES",
+        "conclusion_en": "🧠 Final conclusion – EN",
+        "error_country": "❌ No se pudo detectar el país."
+    },
+    "en": {
+        "title": "📊 Macroeconomic Summary Generator",
+        "address": "Enter a European address:",
+        "words": "Number of words in the summary:",
+        "kpis": "Select indicators to include:",
+        "generate": "Generate summary",
+        "results": "📊 Results by indicator",
+        "summary_es": "🧠 Summary – ES",
+        "summary_en": "🧠 Summary – EN",
+        "conclusion_es": "🧠 Final conclusion – ES",
+        "conclusion_en": "🧠 Final conclusion – EN",
+        "error_country": "❌ Could not detect the country."
+    }
+}
+
+# --- Interfaz de idioma ---
+idioma_ui = st.selectbox("🌐 Select interface language / Selecciona idioma de la interfaz:", ["es", "en"])
+ui = TRAD[idioma_ui]
+
+st.title(ui["title"])
+direccion = st.text_input(ui["address"])
+longitud = st.slider(ui["words"], 100, 300, 150, step=25)
+idioma_resumen = st.radio("Idioma del resumen / Summary language", ["español", "english"])
+idioma_resumen_cod = "es" if idioma_resumen == "español" else "en"
+
+kpis_seleccionados = st.multiselect(
+    ui["kpis"],
+    ["HICP – Harmonized Inflation", "GDP – Gross Domestic Product", "Unemployment Rate"]
+)
+
+# --- Función para detectar país desde dirección ---
 def obtener_codigo_pais(direccion):
     url = "https://nominatim.openstreetmap.org/search"
     params = {"q": direccion, "format": "json", "limit": 1, "addressdetails": 1}
@@ -21,20 +66,11 @@ def obtener_codigo_pais(direccion):
         st.error(f"Error detectando país: {e}")
     return None
 
-# --- Interfaz ---
-st.title("📊 Macroeconomic Summary Generator (HICP + GDP + Unemployment)")
-direccion = st.text_input("Enter a European address:")
-longitud = st.slider("Number of words in the summary:", 100, 300, 150, step=25)
-kpis_seleccionados = st.multiselect(
-    "Select the indicators to include in the summary:",
-    ["HICP – Harmonized Inflation", "GDP – Gross Domestic Product", "Unemployment Rate"]
-)
-
 # --- Procesamiento ---
-if st.button("Generate Summary") and direccion and kpis_seleccionados:
+if st.button(ui["generate"]) and direccion and kpis_seleccionados:
     codigo_pais = obtener_codigo_pais(direccion)
     if not codigo_pais:
-        st.error("❌ Could not detect the country.")
+        st.error(ui["error_country"])
     else:
         nombre_pais = {
             "NL": "Países Bajos", "ES": "España", "FR": "Francia",
@@ -60,10 +96,7 @@ if st.button("Generate Summary") and direccion and kpis_seleccionados:
             return df
 
         texto_kpis = ""
-        parrafos_es = []
-        parrafos_en = []
-        resumen_idx = 0
-
+        parrafos = []
         try:
             if "HICP – Harmonized Inflation" in kpis_seleccionados:
                 df_hicp = obtener_df("prc_hicp_midx", {"coicop": "CP00", "unit": "I15"})
@@ -79,43 +112,27 @@ if st.button("Generate Summary") and direccion and kpis_seleccionados:
                 }, periodo="M")
                 texto_kpis += f"\n\n📌 Unemployment Rate:\n{df_unemp.to_string(index=False)}"
 
-            # --- Prompts ---
-            prompt_es = f"""
-Eres un economista. Redacta un resumen técnico de aproximadamente {longitud} palabras sobre los siguientes indicadores reales de {nombre_pais} obtenidos de Eurostat:
+            prompt = f"""
+{"Eres un economista. Redacta" if idioma_resumen_cod == "es" else "You are an economist. Write"} a technical macroeconomic summary of approximately {longitud} words for {nombre_pais}, using the following data from Eurostat:
 
 {texto_kpis}
 
-Escribe un párrafo separado por cada KPI, y concluye con un párrafo final que los relacione. El texto debe estar en español.
+{"Escribe un párrafo por indicador y concluye con uno final que los relacione." if idioma_resumen_cod == "es" else "Write one paragraph per indicator and end with a concluding paragraph that links them."}
 """
 
-            prompt_en = f"""
-You are an economist. Write a technical summary of approximately {longitud} words about the following real indicators for {nombre_pais}, sourced from Eurostat:
-
-{texto_kpis}
-
-Write a separate paragraph for each KPI, and finish with a final paragraph that connects them. The text must be in English.
-"""
-
-            resp_es = client.chat.completions.create(
+            respuesta = client.chat.completions.create(
                 model="gpt-4o",
-                messages=[{"role": "user", "content": prompt_es}],
-                temperature=0.6
-            )
-            resp_en = client.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "user", "content": prompt_en}],
+                messages=[{"role": "user", "content": prompt}],
                 temperature=0.6
             )
 
-            parrafos_es = resp_es.choices[0].message.content.strip().split("\n\n")
-            parrafos_en = resp_en.choices[0].message.content.strip().split("\n\n")
+            parrafos = respuesta.choices[0].message.content.strip().split("\n\n")
 
-            st.markdown("## 📊 Results by Indicator")
+            st.markdown(f"## {ui['results']}")
             idx = 0
             if "HICP – Harmonized Inflation" in kpis_seleccionados:
                 col1, col2 = st.columns([1.2, 2])
                 with col1:
-                    st.markdown("#### HICP – Harmonized Inflation")
                     fig, ax = plt.subplots(figsize=(6, 3))
                     ax.plot(df_hicp["Periodo"], df_hicp["Valor"], color="#DAA520")
                     ax.set_facecolor("#F5F5F5")
@@ -123,16 +140,12 @@ Write a separate paragraph for each KPI, and finish with a final paragraph that 
                     ax.tick_params(axis="x", rotation=45)
                     st.pyplot(fig)
                 with col2:
-                    st.markdown("#### 🧠 Summary – ES")
-                    st.write(parrafos_es[idx])
-                    st.markdown("#### 🧠 Summary – EN")
-                    st.write(parrafos_en[idx])
+                    st.write(parrafos[idx])
                     idx += 1
 
             if "GDP – Gross Domestic Product" in kpis_seleccionados:
                 col1, col2 = st.columns([1.2, 2])
                 with col1:
-                    st.markdown("#### GDP – Gross Domestic Product")
                     fig, ax = plt.subplots(figsize=(6, 3))
                     ax.plot(df_pib["Periodo"], df_pib["Valor"], color="#4682B4")
                     ax.set_facecolor("#F5F5F5")
@@ -140,16 +153,12 @@ Write a separate paragraph for each KPI, and finish with a final paragraph that 
                     ax.tick_params(axis="x", rotation=45)
                     st.pyplot(fig)
                 with col2:
-                    st.markdown("#### 🧠 Summary – ES")
-                    st.write(parrafos_es[idx])
-                    st.markdown("#### 🧠 Summary – EN")
-                    st.write(parrafos_en[idx])
+                    st.write(parrafos[idx])
                     idx += 1
 
             if "Unemployment Rate" in kpis_seleccionados:
                 col1, col2 = st.columns([1.2, 2])
                 with col1:
-                    st.markdown("#### Unemployment Rate")
                     fig, ax = plt.subplots(figsize=(6, 3))
                     ax.plot(df_unemp["Periodo"], df_unemp["Valor"], color="#2F4F4F")
                     ax.set_facecolor("#F5F5F5")
@@ -157,18 +166,11 @@ Write a separate paragraph for each KPI, and finish with a final paragraph that 
                     ax.tick_params(axis="x", rotation=45)
                     st.pyplot(fig)
                 with col2:
-                    st.markdown("#### 🧠 Summary – ES")
-                    st.write(parrafos_es[idx])
-                    st.markdown("#### 🧠 Summary – EN")
-                    st.write(parrafos_en[idx])
+                    st.write(parrafos[idx])
                     idx += 1
 
-            # --- Conclusión final
-            st.markdown("## 🧩 Final Conclusion")
-            st.markdown("#### 🧠 Conclusión – ES")
-            st.write(parrafos_es[-1])
-            st.markdown("#### 🧠 Conclusion – EN")
-            st.write(parrafos_en[-1])
+            st.markdown("## 🧩 " + (ui["conclusion_es"] if idioma_resumen_cod == "es" else ui["conclusion_en"]))
+            st.write(parrafos[-1])
 
         except Exception as e:
             st.error(f"❌ Error al procesar: {e}")
