@@ -16,8 +16,6 @@ TRAD = {
         "kpis": "Selecciona los indicadores a incluir:",
         "generate": "Generar resumen",
         "results": "📊 Resultados por indicador",
-        "summary_es": "🧠 Resumen – ES",
-        "summary_en": "🧠 Summary – EN",
         "conclusion_es": "🧠 Conclusión final – ES",
         "conclusion_en": "🧠 Final conclusion – EN",
         "error_country": "❌ No se pudo detectar el país."
@@ -29,15 +27,13 @@ TRAD = {
         "kpis": "Select indicators to include:",
         "generate": "Generate summary",
         "results": "📊 Results by indicator",
-        "summary_es": "🧠 Summary – ES",
-        "summary_en": "🧠 Summary – EN",
         "conclusion_es": "🧠 Final conclusion – ES",
         "conclusion_en": "🧠 Final conclusion – EN",
         "error_country": "❌ Could not detect the country."
     }
 }
 
-# Interfaz de idioma
+# Idioma de la interfaz
 idioma_ui = st.selectbox("🌐 Select interface language / Selecciona idioma de la interfaz:", ["es", "en"])
 ui = TRAD[idioma_ui]
 
@@ -52,7 +48,7 @@ kpis_seleccionados = st.multiselect(
     ["HICP – Harmonized Inflation", "GDP – Gross Domestic Product", "Unemployment Rate"]
 )
 
-# Función para detectar país
+# Detectar país
 def obtener_codigo_pais(direccion):
     url = "https://nominatim.openstreetmap.org/search"
     params = {"q": direccion, "format": "json", "limit": 1, "addressdetails": 1}
@@ -66,31 +62,37 @@ def obtener_codigo_pais(direccion):
         st.error(f"Error detectando país: {e}")
     return None
 
-# Función para mostrar gráficos
+# Mostrar gráficos con fondo blanco y estilo limpio
 def mostrar_grafico(df, titulo, color_linea, unidad_y):
-    fig, ax = plt.subplots(figsize=(6, 3), facecolor='none')
-    ax.plot(df["Periodo"], df["Valor"], color=color_linea, linewidth=2)
+    fig, ax = plt.subplots(figsize=(6, 3), facecolor='white')
+    ax.plot(df["Periodo"], df["Valor"], color=color_linea, linewidth=2, marker='o', markersize=4)
 
     ticks = [p for i, p in enumerate(df["Periodo"]) if "-Q1" in p or "-01" in p]
     ax.set_xticks(ticks)
     ax.set_xticklabels(ticks, rotation=0, fontsize=8)
 
-    ax.set_title(titulo, fontsize=12)
+    ax.set_title(titulo, fontsize=12, pad=12)
     ax.set_ylabel(unidad_y)
     ax.grid(True, linestyle="--", alpha=0.3)
-    ax.set_facecolor("none")
+    ax.set_facecolor("white")
 
+    # Estilo claro
     plt.rcParams.update({
-        'text.color': '#CCCCCC',
-        'axes.labelcolor': '#CCCCCC',
-        'xtick.color': '#CCCCCC',
-        'ytick.color': '#CCCCCC',
-        'axes.edgecolor': '#888888',
+        'text.color': '#333333',
+        'axes.labelcolor': '#333333',
+        'xtick.color': '#333333',
+        'ytick.color': '#333333',
+        'axes.edgecolor': '#CCCCCC',
     })
+
+    # Esquinas redondeadas simuladas (estética)
+    for spine in ax.spines.values():
+        spine.set_linewidth(0.8)
+        spine.set_edgecolor("#CCCCCC")
 
     st.pyplot(fig)
 
-# Ejecución principal
+# Ejecutar app
 if st.button(ui["generate"]) and direccion and kpis_seleccionados:
     codigo_pais = obtener_codigo_pais(direccion)
     if not codigo_pais:
